@@ -2,6 +2,17 @@
 #include <time.h>
 
 #include "raylib.h"
+#include "raymath.h"
+
+typedef struct Snake {
+  int length;
+  Vector2 *loc;
+} Snake;
+
+void Copy(Vector2 *dest, const Vector2 *src) {
+  dest->x = src->x;
+  dest->y = src->y;
+}
 
 void MoveRect(Vector2 *loc, const Vector2 *vel, const Vector2 *bound) {
   loc->x += vel->x;
@@ -58,6 +69,44 @@ void GetRandomLoc(Vector2 *loc, const Vector2 *bound, const Vector2 *size) {
   QuantizeLoc(loc, loc, size);
 }
 
+void SnakeExtend(Snake *snake, const Vector2 *loc) {
+  for (int i = snake->length; i > 0; i--) {
+    Copy(&snake->loc[i], &snake->loc[i - 1]);
+  }
+  Copy(&snake->loc[0], loc);
+  (snake->length)++;
+}
+
+bool CheckCollisionAndUpdate(Snake *snake, const Vector2 *loc) {
+  // If loc is same as head, no motion since last step
+  if (Vector2Equals(snake->loc[0], *loc)) {
+    return false;
+  }
+
+  // Else check all other parts of the snake
+  for (int i = 1; i < snake->length; i++) {
+    if (Vector2Equals(snake->loc[i], *loc)) {
+      return true;
+#ifdef DEBUG
+      TraceLog(LOG_INFO, "[C] Collision at (%d, %d)", (int)loc->x, (int)loc->y);
+#endif
+    }
+  }
+
+  // Update the snake location
+  for (int i = snake->length - 1; i > 0; i--) {
+    Copy(&snake->loc[i], &snake->loc[i - 1]);
+  }
+  Copy(&snake->loc[0], loc);
+  return false;
+}
+
+void DrawSnake(Snake *snake, const Vector2 *size) {
+  for (int i = 0; i < snake->length; i++) {
+    DrawRectangleV(snake->loc[i], *size, BLACK);
+  }
+}
+
 int main(void) {
   const Vector2 screenSize = {800, 460};
   InitWindow(screenSize.x, screenSize.y, "Snake");
@@ -73,47 +122,65 @@ int main(void) {
 
   // Rectangle location and velocity
   Vector2 rectSize = {20, 20};
-  Vector2 rectLoc = {GetScreenWidth() / 2 - 10, GetScreenHeight() / 2 - 10};
-  Vector2 dispRectLoc = rectLoc;
+  Vector2 rectLoc = {screenSize.x / 2 - rectSize.x / 2,
+                     screenSize.y / 2 - rectSize.y / 2};
+  Vector2 nextLoc = rectLoc;
   float rectSpeed = 2.0f;
   float rectAccel = 1.05f;
   Direction dir = RIGHT;
   Vector2 rectVel = {rectSpeed, 0.0f};
   bool isMoving = true;
+  bool gameOver = false;
+
+  // Statically allocate max length of the snake
+  int maxSnakeLength =
+      (screenSize.x / rectSize.x) * (screenSize.y / rectSize.y);
+  Vector2 snakeLoc[maxSnakeLength];
+
+  Snake snake = {.length = 1, .loc = snakeLoc};
+  Copy(&snake.loc[0], &rectLoc);
+
   Vector2 appleLoc;
   GetRandomLoc(&appleLoc, &screenSize, &rectSize);
-  int appleCount = 0;
+  int textWidth;
 
   SetTargetFPS(60);
 
   while (!WindowShouldClose()) {
     // Update
-    // Pause movement for debug
-    if (IsKeyPressed(KEY_SPACE)) {
-      isMoving = !isMoving;
-    }
+    if (!gameOver) {
+      // Pause movement for debug
+      if (IsKeyPressed(KEY_SPACE)) {
+        isMoving = !isMoving;
+      }
 
-    // Update velocity based on arrow keys (snake rules i.e. no reversing)
-    UpdateDirection(&dir);
-    SetVelocity(&rectVel, dir, rectSpeed);
+      // Update velocity based on arrow keys (snake rules i.e. no reversing)
+      UpdateDirection(&dir);
+      SetVelocity(&rectVel, dir, rectSpeed);
 
-    // Move the rectangle based on its velocity. Quantize location to multiples
-    // of rectSize. Loop around the screen.
-    if (isMoving) {
-      MoveRect(&rectLoc, &rectVel, &screenSize);
-      QuantizeLoc(&dispRectLoc, &rectLoc, &rectSize);
+      // Move the rectangle based on its velocity. Quantize location to
+      // multiples of rectSize. Loop around the screen.
+      if (isMoving) {
+        MoveRect(&rectLoc, &rectVel, &screenSize);
+        QuantizeLoc(&nextLoc, &rectLoc, &rectSize);
 
-      // Check collision with apple
-      // On collision, move apple to new random location
-      // Increase velocity by 5%
-      if (dispRectLoc.x == appleLoc.x && dispRectLoc.y == appleLoc.y) {
-        GetRandomLoc(&appleLoc, &screenSize, &rectSize);
-        rectSpeed *= rectAccel;
-        appleCount++;
+        // Check collision with apple
+        // On collision, move apple to new random location
+        // Increase velocity by 5%
+        if (Vector2Equals(nextLoc, appleLoc)) {
+          SnakeExtend(&snake, &nextLoc);
+          GetRandomLoc(&appleLoc, &screenSize, &rectSize);
+          rectSpeed *= rectAccel;
 #ifdef DEBUG
-        TraceLog(LOG_INFO, "[E] Next Apple: (%d, %d)", (int)appleLoc.x,
-                 (int)appleLoc.y);
+          TraceLog(LOG_INFO, "[E] Next Apple: (%d, %d)", (int)appleLoc.x,
+                   (int)appleLoc.y);
 #endif
+        } else {
+          // Check collision with self
+          if (CheckCollisionAndUpdate(&snake, &nextLoc)) {
+            gameOver = true;
+          }
+        }
       }
     }
 
@@ -121,8 +188,7 @@ int main(void) {
     BeginDrawing();
     ClearBackground(RAYWHITE);
 
-    // Draw a 20x20 black rectangle at rectLoc
-    DrawRectangleV(dispRectLoc, rectSize, BLACK);
+    DrawSnake(&snake, &rectSize);
 
     // Draw a 20x20 dark red rectangle at appleLoc
     DrawRectangleV(appleLoc, rectSize, MAROON);
@@ -131,14 +197,21 @@ int main(void) {
 #ifdef DEBUG
     DrawText(isMoving ? "Press [SPACE] to pause" : "Press [SPACE] to unpause",
              10, GetScreenHeight() - 30, 20, LIGHTGRAY);
-    // Show the current location of the rectangle in the bottom right corner
-    DrawText(
-        TextFormat("Location: (%03.0f, %03.0f)", dispRectLoc.x, dispRectLoc.y),
-        GetScreenWidth() - 200, GetScreenHeight() - 30, 20, LIGHTGRAY);
+    DrawText(TextFormat("Location: (%03.0f, %03.0f)", nextLoc.x, nextLoc.y),
+             GetScreenWidth() - 200, GetScreenHeight() - 30, 20, LIGHTGRAY);
+    DrawText(TextFormat("FPS: %02d", GetFPS()), 10, 10, 20, LIGHTGRAY);
 #endif
     // Show appleCount as score in the top right corner
-    DrawText(TextFormat("Score: %03d", appleCount), GetScreenWidth() - 120, 10,
-             20, DARKGRAY);
+    DrawText(TextFormat("Score: %03d", snake.length - 1),
+             GetScreenWidth() - 120, 10, 20, DARKGRAY);
+
+    if (gameOver) {
+      // Draw transparent rectangle and text for game over
+      DrawRectangle(0, 0, screenSize.x, screenSize.y, Fade(RAYWHITE, 0.7f));
+      textWidth = MeasureText("Game Over", 30);
+      DrawText("Game Over", screenSize.x / 2 - textWidth / 2, screenSize.y / 2,
+               30, MAROON);
+    }
 
     EndDrawing();
   }
