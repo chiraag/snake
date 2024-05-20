@@ -6,10 +6,10 @@
 void MoveRect(Vector2 *loc, const Vector2 *vel, const Vector2 *bound) {
   loc->x += vel->x;
   loc->y += vel->y;
-  if (loc->x > bound->x) loc->x = 0;
-  if (loc->x < 0) loc->x = bound->x;
-  if (loc->y > bound->y) loc->y = 0;
-  if (loc->y < 0) loc->y = bound->y;
+  if (loc->x >= bound->x) loc->x = 0;
+  if (loc->x < 0) loc->x = bound->x - 1;
+  if (loc->y >= bound->y) loc->y = 0;
+  if (loc->y < 0) loc->y = bound->y - 1;
 }
 
 void QuantizeLoc(Vector2 *outLoc, const Vector2 *inLoc, const Vector2 *size) {
@@ -53,8 +53,8 @@ void SetVelocity(Vector2 *vel, const Direction dir, const float speed) {
 }
 
 void GetRandomLoc(Vector2 *loc, const Vector2 *bound, const Vector2 *size) {
-  loc->x = GetRandomValue(0, bound->x);
-  loc->y = GetRandomValue(0, bound->y);
+  loc->x = GetRandomValue(0, bound->x - 1);
+  loc->y = GetRandomValue(0, bound->y - 1);
   QuantizeLoc(loc, loc, size);
 }
 
@@ -82,6 +82,7 @@ int main(void) {
   bool isMoving = true;
   Vector2 appleLoc;
   GetRandomLoc(&appleLoc, &screenSize, &rectSize);
+  int appleCount = 0;
 
   SetTargetFPS(60);
 
@@ -108,6 +109,11 @@ int main(void) {
       if (dispRectLoc.x == appleLoc.x && dispRectLoc.y == appleLoc.y) {
         GetRandomLoc(&appleLoc, &screenSize, &rectSize);
         rectSpeed *= rectAccel;
+        appleCount++;
+#ifdef DEBUG
+        TraceLog(LOG_INFO, "[E] Next Apple: (%d, %d)", (int)appleLoc.x,
+                 (int)appleLoc.y);
+#endif
       }
     }
 
@@ -121,12 +127,18 @@ int main(void) {
     // Draw a 20x20 dark red rectangle at appleLoc
     DrawRectangleV(appleLoc, rectSize, MAROON);
 
-    // Show the pause message and current pause state in the top left corner
+    // Show the pause message and current pause state in the bottom left corner
+#ifdef DEBUG
     DrawText(isMoving ? "Press [SPACE] to pause" : "Press [SPACE] to unpause",
-             10, 10, 20, DARKGRAY);
-    // Show the current location of the rectangle in the top right corner
-    // DrawText(TextFormat("Location: (%03.0f, %03.0f)", rectLoc.x, rectLoc.y),
-    //          GetScreenWidth() - 200, 10, 20, DARKGRAY);
+             10, GetScreenHeight() - 30, 20, LIGHTGRAY);
+    // Show the current location of the rectangle in the bottom right corner
+    DrawText(
+        TextFormat("Location: (%03.0f, %03.0f)", dispRectLoc.x, dispRectLoc.y),
+        GetScreenWidth() - 200, GetScreenHeight() - 30, 20, LIGHTGRAY);
+#endif
+    // Show appleCount as score in the top right corner
+    DrawText(TextFormat("Score: %03d", appleCount), GetScreenWidth() - 120, 10,
+             20, DARKGRAY);
 
     EndDrawing();
   }
