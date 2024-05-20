@@ -1,5 +1,5 @@
-PLATFORM ?= PLATFORM_DESKTOP # one of [PLATFORM_DESKTOP]
-BUILD_MODE ?= DEBUG # one of [DEBUG, RELEASE]
+PLATFORM ?= PLATFORM_DESKTOP
+BUILD_MODE ?= DEBUG
 RAYLIB_INCLUDE_PATH ?= third_party/raylib-5.0_macos/include
 RAYLIB_LIB_PATH ?= third_party/raylib-5.0_macos/lib/libraylib.a
 
@@ -9,9 +9,8 @@ EXECUTABLE = $(BUILD_DIR)/main
 
 CC = clang
 CFLAGS = -c -Wall -std=c99 -D_DEFAULT_SOURCE -Wno-missing-braces -Wunused-result
-# BUILD_MODE is DEBUG
 ifeq ($(BUILD_MODE), DEBUG)
-	CFLAGS += -g -O0 -D_DEBUG
+	CFLAGS += -g -O0 -DDEBUG
 else
 	CFLAGS += -O2
 endif
