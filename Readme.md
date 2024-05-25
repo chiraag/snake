@@ -16,4 +16,4 @@ Binaries generated in the `build` directory
 
 ### Demo
 
-![demo](./assets/demo.mov)
+<img src="https://github.com/chiraag/snake/blob/903e0f2cc9905c09e535ddbd0f7983a22249cfcd/assets/demo.mov" width="400">
